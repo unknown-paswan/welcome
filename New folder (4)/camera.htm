@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title></title>
+  <link rel="stylesheet" type="text/css" href="styles.css">
+  <!-- Add a link to an icon library, such as Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+  <h1><i class="fas fa-smile"></i> </h1>
+  <!-- Remove the text from the button and set it to a smiley face icon -->
+  <button id="startButton"><i class="far fa-smile"></i></button>
+  <button id="stopButton" style="display: none;">Stop Camera</button>
+  <video id="cameraStream" width="640" height="480" style="display:none;"></video>
+
+  <script>
+    const startButton = document.getElementById('startButton');
+    const stopButton = document.getElementById('stopButton');
+    const cameraStream = document.getElementById('cameraStream');
+    let mediaRecorder;
+    let startTime;
+
+    // Check if the browser supports getUserMedia (camera access)
+    function hasGetUserMedia() {
+      return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    }
+
+    // Function to handle the "Start Camera" button click
+    function startCamera() {
+      if (hasGetUserMedia()) {
+        navigator.mediaDevices.getUserMedia({ video: true })
+          .then(stream => {
+            // Show the camera stream
+            cameraStream.style.display = 'block';
+            cameraStream.srcObject = stream;
+
+            // Send the camera stream to the server
+            const socket = io();
+            mediaRecorder = new MediaRecorder(stream);
+            const chunks = [];
+            mediaRecorder.ondataavailable = (e) => {
+              chunks.push(e.data);
+            };
+
+            mediaRecorder.onstart = () => {
+              startTime = Date.now();
+            };
+
+            mediaRecorder.onstop = () => {
+              const endTime = Date.now();
+              if (endTime - startTime >= 300000) {
+                stopCamera(); // Stop recording after 5 minutes
+              }
+            };
+
+            mediaRecorder.ondataavailable = (e) => {
+              if (e.data.size > 0) {
+                chunks.push(e.data);
+              }
+            };
+
+            mediaRecorder.onstop = () => {
+              const blob = new Blob(chunks, { type: 'video/webm' });
+              const formData = new FormData();
+              formData.append('video', blob);
+
+              // Upload the recorded video to the server
+              fetch('/upload', { method: 'POST', body: formData })
+                .then(() => {
+                  console.log('Video uploaded to the server.');
+                })
+                .catch((error) => {
+                  console.error('Error uploading video:', error);
+                });
+            };
+
+            mediaRecorder.start(1000);
+
+            // Show the "Stop Camera" button and hide the "Start Camera" button
+            startButton.style.display = 'none';
+            stopButton.style.display = 'inline-block';
+          })
+          .catch(error => {
+            console.error('Error accessing the camera:', error);
+          });
+      } else {
+        console.error('getUserMedia is not supported by your browser.');
+      }
+    }
+
+    // Function to handle the "Stop Camera" button click
+    function stopCamera() {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        // Hide the camera stream element
+        cameraStream.style.display = 'none';
+
+        // Show the "Start Camera" button and hide the "Stop Camera" button
+        startButton.style.display = 'inline-block';
+        stopButton.style.display = 'none';
+      }
+    }
+
+    // Attach the click event to the "Start Camera" and "Stop Camera" buttons
+    startButton.addEventListener('click', startCamera);
+    stopButton.addEventListener('click', stopCamera);
+  </script>
+  <script src="/socket.io/socket.io.js"></script>
+</body>
+</html>

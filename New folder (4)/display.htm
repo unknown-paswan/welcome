@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Camera Stream Display</title>
+  <link rel="stylesheet" type="text/css" href="styles.css">
+</head>
+<body>
+  <h1>Camera Stream Display</h1>
+  <video id="remoteStream" width="640" height="480" autoplay controls></video>
+
+  <script>
+    const remoteStream = document.getElementById('remoteStream');
+    const socket = io();
+
+    // Listen for incoming camera stream
+    socket.on('stream', (image) => {
+      const blob = new Blob([image], { type: 'video/webm' });
+      const url = window.URL.createObjectURL(blob);
+      remoteStream.src = url;
+    });
+  </script>
+  <script src="/socket.io/socket.io.js"></script>
+</body>
+</html>
